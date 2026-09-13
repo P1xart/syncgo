@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/syncgo/syncgo/e2e/pkg/utils"
 	"github.com/syncgo/syncgo/internal/batcher"
 	"github.com/syncgo/syncgo/internal/bulk_transformer"
 	"github.com/syncgo/syncgo/pkg/search_engine_client/mocks"
@@ -24,7 +25,7 @@ func TestBatcherWithElasticsearch_FlushOnSize(t *testing.T) {
 	monitoring.EXPECT().IncSearchRequests(gomock.Any(), gomock.Any()).MinTimes(1)
 	monitoring.EXPECT().AddSearchErrors(gomock.Any(), gomock.Any()).MaxTimes(1)
 
-	client := newElasticsearchClient(t, ctrl, monitoring)
+	client := utils.NewSearchEngineClient(t, monitoring, "config_elasticsearch.yaml", "elasticsearch")
 
 	id1 := uuid.New().String()
 	id2 := uuid.New().String()
@@ -65,7 +66,7 @@ func TestBatcherWithElasticsearch_Flush(t *testing.T) {
 	monitoring.EXPECT().IncSearchRequests(gomock.Any(), gomock.Any()).MinTimes(1)
 	monitoring.EXPECT().AddSearchErrors(gomock.Any(), gomock.Any()).MaxTimes(1)
 
-	client := newElasticsearchClient(t, ctrl, monitoring)
+	client := utils.NewSearchEngineClient(t, monitoring, "config_elasticsearch.yaml", "elasticsearch")
 
 	id := uuid.New().String()
 
@@ -93,7 +94,7 @@ func TestBatcherWithElasticsearch_DeleteAfterCreate(t *testing.T) {
 	monitoring.EXPECT().IncSearchRequests(gomock.Any(), gomock.Any()).MinTimes(2)
 	monitoring.EXPECT().AddSearchErrors(gomock.Any(), gomock.Any()).MaxTimes(2)
 
-	client := newElasticsearchClient(t, ctrl, monitoring)
+	client := utils.NewSearchEngineClient(t, monitoring, "config_elasticsearch.yaml", "elasticsearch")
 
 	id := uuid.New().String()
 
