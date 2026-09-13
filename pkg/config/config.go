@@ -24,7 +24,6 @@ const (
 	defaultFlushRetryTimeout = time.Second
 )
 
-// Config holds the complete application configuration
 type Config struct {
 	PostgreSQL   PostgreSQLConfig   `yaml:"postgresql"`
 	SearchEngine SearchEngineConfig `yaml:"search_engine"`
@@ -32,33 +31,22 @@ type Config struct {
 	Batcher      BatcherConfig      `yaml:"batcher"`
 }
 
-// OpenSearchGRPCConfig holds gRPC connection settings for OpenSearch.
 type OpenSearchGRPCConfig struct {
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
 }
 
-// MetricsConfig holds configuration for the Prometheus metrics HTTP server
 type MetricsConfig struct {
-	// Port is the TCP port to expose /metrics on (e.g. 9090). If 0, metrics server is disabled.
 	Port int `yaml:"port"`
 }
 
-// BatcherConfig holds configuration for the internal batcher
 type BatcherConfig struct {
-	// Size is the maximum number of items buffered before a flush is triggered.
-	Size int `yaml:"size"`
-	// FlushInterval is how long the batcher waits without any flush before
-	// sending committed items automatically. 0 disables the timer-based flush.
-	FlushInterval time.Duration `yaml:"flush_interval"`
-	// FlushMaxRetries is how many extra attempts are made after a failed flush
-	// before giving up. 0 means no retries.
-	FlushMaxRetries int `yaml:"flush_max_retries"`
-	// FlushRetryTimeout is the delay between flush retry attempts.
+	Size              int           `yaml:"size"`
+	FlushInterval     time.Duration `yaml:"flush_interval"`
+	FlushMaxRetries   int           `yaml:"flush_max_retries"`
 	FlushRetryTimeout time.Duration `yaml:"flush_retry_timeout"`
 }
 
-// PostgreSQLConfig holds PostgreSQL connection configuration
 type PostgreSQLConfig struct {
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
@@ -71,7 +59,6 @@ type PostgreSQLConfig struct {
 	IDColumn        string `yaml:"id_column"`
 }
 
-// SearchConfig holds connection configuration for Elasticsearch or OpenSearch (HTTP).
 type SearchEngineConfig struct {
 	Name              string                    `yaml:"name"`
 	Address           string                    `yaml:"address"`
@@ -97,7 +84,6 @@ type SearchKeepAliveConfig struct {
 	MaxIdleConnDuration time.Duration `yaml:"max_idle_conn_duration"`
 }
 
-// Validate checks that the configuration is valid
 func (c *Config) Validate() error {
 	name := c.SearchEngine.Name
 
@@ -144,18 +130,15 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// UseGRPC returns true if OpenSearch is configured with gRPC (host and port set).
 func (c *SearchEngineConfig) UseGRPC() bool {
 	return c != nil && c.Name == opensearch && c.GRPC != nil && c.GRPC.Host != "" && c.GRPC.Port > 0
 }
 
-// LoadFromYAML loads configuration from a YAML file
 func LoadFromYAML(configPath string) (*Config, error) {
 	if configPath == "" {
 		configPath = defaultConfigPath
 	}
 
-	// Normalize the path (resolve relative paths, clean up separators)
 	configPath = filepath.Clean(configPath)
 
 	if _, err := os.Stat(configPath); err != nil {
