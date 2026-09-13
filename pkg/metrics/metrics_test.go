@@ -18,7 +18,7 @@ func counterValue(t *testing.T, c prometheus.Counter) float64 {
 	return m.GetCounter().GetValue()
 }
 
-func TestSearchMetrics_FlushCounters(t *testing.T) {
+func TestMetrics_FlushCounters(t *testing.T) {
 	m := New()
 
 	if got := counterValue(t, m.flushRetriesTotal); got != 0 {

@@ -35,6 +35,7 @@ func TestBatcherWithElasticsearch_FlushRetriesThenSucceeds(t *testing.T) {
 
 	monitoring := mocks.NewMockMonitoring(ctrl)
 	monitoring.EXPECT().IncSearchRequests(gomock.Any(), gomock.Any()).MinTimes(2)
+	monitoring.EXPECT().ObserveSearchBulkDuration(gomock.Any(), gomock.Any(), gomock.Any()).MinTimes(1)
 	monitoring.EXPECT().AddSearchErrors(gomock.Any(), gomock.Any()).MinTimes(1)
 
 	client := newElasticsearchClient(t, ctrl, monitoring)
@@ -46,7 +47,7 @@ func TestBatcherWithElasticsearch_FlushRetriesThenSucceeds(t *testing.T) {
 		BufferSize:   10,
 		MaxRetries:   3,
 		RetryTimeout: 300 * time.Millisecond,
-	}, spy, client)
+	}, spy, nil, client)
 
 	b.Add(bulk_transformer.Data{ID: id, Action: bulk_transformer.Update, Body: []byte(`{"title":"retried"}`)})
 	b.Commit()
@@ -101,6 +102,7 @@ func TestBatcherWithElasticsearch_FlushExhaustsRetriesOnPersistentFailure(t *tes
 
 	monitoring := mocks.NewMockMonitoring(ctrl)
 	monitoring.EXPECT().IncSearchRequests(gomock.Any(), gomock.Any()).MinTimes(1)
+	monitoring.EXPECT().ObserveSearchBulkDuration(gomock.Any(), gomock.Any(), gomock.Any()).MinTimes(1)
 	monitoring.EXPECT().AddSearchErrors(gomock.Any(), gomock.Any()).MinTimes(1)
 
 	client := newElasticsearchClient(t, ctrl, monitoring)
@@ -112,7 +114,7 @@ func TestBatcherWithElasticsearch_FlushExhaustsRetriesOnPersistentFailure(t *tes
 		BufferSize:   10,
 		MaxRetries:   2,
 		RetryTimeout: 100 * time.Millisecond,
-	}, spy, client)
+	}, spy, nil, client)
 
 	b.Add(bulk_transformer.Data{ID: id, Action: bulk_transformer.Update, Body: []byte(`{"title":"never"}`)})
 	b.Commit()
