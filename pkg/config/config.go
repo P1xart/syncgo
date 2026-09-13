@@ -19,6 +19,9 @@ const (
 
 	defaultBatcherSize          = 100
 	defaultBatcherFlushInterval = 50 * time.Millisecond
+
+	defaultFlushMaxRetries   = 3
+	defaultFlushRetryTimeout = time.Second
 )
 
 // Config holds the complete application configuration
@@ -48,6 +51,11 @@ type BatcherConfig struct {
 	// FlushInterval is how long the batcher waits without any flush before
 	// sending committed items automatically. 0 disables the timer-based flush.
 	FlushInterval time.Duration `yaml:"flush_interval"`
+	// FlushMaxRetries is how many extra attempts are made after a failed flush
+	// before giving up. 0 means no retries.
+	FlushMaxRetries int `yaml:"flush_max_retries"`
+	// FlushRetryTimeout is the delay between flush retry attempts.
+	FlushRetryTimeout time.Duration `yaml:"flush_retry_timeout"`
 }
 
 // PostgreSQLConfig holds PostgreSQL connection configuration
@@ -111,6 +119,14 @@ func (c *Config) Validate() error {
 
 	if c.Batcher.FlushInterval <= 0 {
 		c.Batcher.FlushInterval = defaultBatcherFlushInterval
+	}
+
+	if c.Batcher.FlushMaxRetries <= 0 {
+		c.Batcher.FlushMaxRetries = defaultFlushMaxRetries
+	}
+
+	if c.Batcher.FlushRetryTimeout <= 0 {
+		c.Batcher.FlushRetryTimeout = defaultFlushRetryTimeout
 	}
 
 	if c.PostgreSQL.SlotName == "" {

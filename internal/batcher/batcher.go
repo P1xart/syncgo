@@ -14,12 +14,32 @@ type BulkSender interface {
 	Bulk(ctx context.Context, data bulk_transformer.DataPayload) error
 }
 
+// FlushMonitoring reports flush retry activity. Both methods are optional:
+// a nil FlushMonitoring passed to NewBatcher disables reporting.
+type FlushMonitoring interface {
+	IncFlushRetry()
+	IncFlushFailure()
+}
+
+// Config holds retry settings for Batcher.Flush.
+type Config struct {
+	BufferSize   int
+	FlushTimeout time.Duration
+	// MaxRetries is how many extra attempts are made after a failed flush
+	// before giving up. 0 means no retries.
+	MaxRetries int
+	// RetryTimeout is the delay between flush retry attempts.
+	RetryTimeout time.Duration
+}
+
 type Batcher struct {
 	mu sync.Mutex
 
 	buffer       []bulk_transformer.Data
 	bufferSize   int
 	flushTimeout time.Duration
+	maxRetries   int
+	retryTimeout time.Duration
 
 	// lastCommitted is the index of the last committed item in buffer.
 	// -1 means nothing committed yet.
@@ -29,22 +49,26 @@ type Batcher struct {
 	// to avoid firing a timeout flush too soon after a size-triggered flush.
 	lastFlushTime time.Time
 
-	sender BulkSender
-	ctx    context.Context
+	sender     BulkSender
+	monitoring FlushMonitoring
+	ctx        context.Context
 }
 
-func NewBatcher(ctx context.Context, bufferSize int, flushTimeout time.Duration, sender BulkSender) *Batcher {
+func NewBatcher(ctx context.Context, cfg Config, monitoring FlushMonitoring, sender BulkSender) *Batcher {
 	batcher := &Batcher{
 		ctx:           ctx,
-		buffer:        make([]bulk_transformer.Data, 0, bufferSize),
-		bufferSize:    bufferSize,
-		flushTimeout:  flushTimeout,
+		buffer:        make([]bulk_transformer.Data, 0, cfg.BufferSize),
+		bufferSize:    cfg.BufferSize,
+		flushTimeout:  cfg.FlushTimeout,
+		maxRetries:    cfg.MaxRetries,
+		retryTimeout:  cfg.RetryTimeout,
 		lastCommitted: -1,
 		sender:        sender,
+		monitoring:    monitoring,
 		lastFlushTime: time.Now(),
 	}
 
-	if flushTimeout > 0 {
+	if cfg.FlushTimeout > 0 {
 		go batcher.startFlushLoop()
 	}
 
@@ -65,7 +89,7 @@ func (b *Batcher) startFlushLoop() {
 			idle := time.Since(b.lastFlushTime)
 			shouldFlush := b.flushTimeout > 0 && idle >= b.flushTimeout
 			if shouldFlush {
-				b.flushLocked()
+				_ = b.flushLocked()
 			}
 			b.mu.Unlock()
 		}
@@ -79,7 +103,7 @@ func (b *Batcher) Add(item bulk_transformer.Data) {
 	defer b.mu.Unlock()
 
 	if len(b.buffer) >= b.bufferSize {
-		b.flushLocked()
+		_ = b.flushLocked()
 	}
 
 	b.buffer = append(b.buffer, item)
@@ -134,30 +158,69 @@ func (b *Batcher) Rollback() {
 }
 
 // Flush sends only committed items.
-func (b *Batcher) Flush() {
+// It returns the last error if the flush and all its retries failed.
+func (b *Batcher) Flush() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.flushLocked()
+	return b.flushLocked()
 }
 
-// flushLocked flushes committed prefix.
+// flushLocked flushes committed prefix, retrying on failure up to maxRetries
+// times with a retryTimeout delay between attempts.
 // Caller must hold mutex.
-func (b *Batcher) flushLocked() {
+func (b *Batcher) flushLocked() error {
 	if b.lastCommitted < 0 {
-		return
+		return nil
 	}
 
 	flushLen := b.lastCommitted + 1
 	payload := bulk_transformer.DataPayload(b.buffer[:flushLen])
 
-	if err := b.sender.Bulk(b.ctx, payload); err != nil {
+	var err error
+	for attempt := 1; attempt <= b.maxRetries+1; attempt++ {
+		err = b.sender.Bulk(b.ctx, payload)
+		if err == nil {
+			break
+		}
+
 		slog.Error("batcher: bulk send failed",
+			slog.Int("attempt", attempt),
+			slog.Int("max_attempts", b.maxRetries+1),
 			slog.Int("last_committed", b.lastCommitted),
 			slog.Int("flush_len", flushLen),
 			slog.String("error", err.Error()),
 		)
-		return
+
+		if attempt > b.maxRetries {
+			break
+		}
+
+		if b.monitoring != nil {
+			b.monitoring.IncFlushRetry()
+		}
+
+		select {
+		case <-b.ctx.Done():
+			err = b.ctx.Err()
+			if b.monitoring != nil {
+				b.monitoring.IncFlushFailure()
+			}
+			return err
+		case <-time.After(b.retryTimeout):
+		}
+	}
+
+	if err != nil {
+		slog.Error("batcher: flush failed, giving up after retries",
+			slog.Int("attempts", b.maxRetries+1),
+			slog.Int("flush_len", flushLen),
+			slog.String("error", err.Error()),
+		)
+		if b.monitoring != nil {
+			b.monitoring.IncFlushFailure()
+		}
+		return err
 	}
 
 	// Keep only uncommitted tail
@@ -166,4 +229,6 @@ func (b *Batcher) flushLocked() {
 	// Reset commit pointer relative to new buffer
 	b.lastCommitted = -1
 	b.lastFlushTime = time.Now()
+
+	return nil
 }

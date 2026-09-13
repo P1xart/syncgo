@@ -5,8 +5,10 @@ import (
 )
 
 type SearchMetrics struct {
-	requestsTotal *prometheus.CounterVec
-	errorsTotal   *prometheus.CounterVec
+	requestsTotal      *prometheus.CounterVec
+	errorsTotal        *prometheus.CounterVec
+	flushRetriesTotal  prometheus.Counter
+	flushFailuresTotal prometheus.Counter
 }
 
 func New() *SearchMetrics {
@@ -24,11 +26,26 @@ func New() *SearchMetrics {
 				Help: "Total number of indexing errors reported by the search backend.",
 			},
 			[]string{"backend"},
-		)}
+		),
+		flushRetriesTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "syncgo_batcher_flush_retries_total",
+				Help: "Total number of batcher flush retry attempts.",
+			},
+		),
+		flushFailuresTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "syncgo_batcher_flush_failures_total",
+				Help: "Total number of batcher flushes that failed after exhausting all retries.",
+			},
+		),
+	}
 
 	prometheus.MustRegister(
 		searchMetrics.requestsTotal,
 		searchMetrics.errorsTotal,
+		searchMetrics.flushRetriesTotal,
+		searchMetrics.flushFailuresTotal,
 	)
 
 	return searchMetrics
@@ -46,4 +63,14 @@ func (m *SearchMetrics) AddSearchErrors(backend string, count float64) {
 		return
 	}
 	m.errorsTotal.WithLabelValues(backend).Add(count)
+}
+
+// IncFlushRetry increments the batcher flush retry counter.
+func (m *SearchMetrics) IncFlushRetry() {
+	m.flushRetriesTotal.Inc()
+}
+
+// IncFlushFailure increments the batcher flush failure counter.
+func (m *SearchMetrics) IncFlushFailure() {
+	m.flushFailuresTotal.Inc()
 }
