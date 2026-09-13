@@ -69,7 +69,7 @@ func TestBatcher_AddCommitFlush(t *testing.T) {
 	b.Add(data("b"))
 	b.Commit()
 	b.Commit()
-	b.Flush()
+	_ = b.Flush()
 
 	if len(sender.payloads) != 1 {
 		t.Fatalf("expected 1 bulk call, got %d", len(sender.payloads))
@@ -86,7 +86,7 @@ func TestBatcher_FlushWithoutCommit(t *testing.T) {
 	b := NewBatcher(context.Background(), Config{BufferSize: 10, FlushTimeout: 0}, nil, nil, sender)
 
 	b.Add(data("a"))
-	b.Flush()
+	_ = b.Flush()
 
 	if len(sender.payloads) != 0 {
 		t.Fatalf("expected no flush")
@@ -104,7 +104,7 @@ func TestBatcher_PartialCommitFlush(t *testing.T) {
 	b.Commit()
 	b.Commit()
 
-	b.Flush()
+	_ = b.Flush()
 
 	if len(sender.payloads) != 1 {
 		t.Fatalf("expected 1 flush")
@@ -324,11 +324,11 @@ func TestBatcher_MultipleFlushes(t *testing.T) {
 	b.Add(data("b"))
 	b.Commit()
 	b.Commit()
-	b.Flush()
+	_ = b.Flush()
 
 	b.Add(data("c"))
 	b.Commit()
-	b.Flush()
+	_ = b.Flush()
 
 	if len(sender.payloads) != 2 {
 		t.Fatalf("expected 2 flushes")
@@ -352,7 +352,7 @@ func TestBatcher_CommitMoreThanBuffer(t *testing.T) {
 	b.Commit()
 	b.Commit()
 
-	b.Flush()
+	_ = b.Flush()
 
 	if len(sender.payloads) != 1 {
 		t.Fatalf("expected single flush")
@@ -367,7 +367,7 @@ func TestBatcher_FlushEmpty(t *testing.T) {
 	sender := &mockSender{}
 	b := NewBatcher(context.Background(), Config{BufferSize: 10, FlushTimeout: 0}, nil, nil, sender)
 
-	b.Flush()
+	_ = b.Flush()
 
 	if len(sender.payloads) != 0 {
 		t.Fatalf("expected no payload")
@@ -482,7 +482,7 @@ func TestBatcher_CommitNRollbackN(t *testing.T) {
 
 	b.CommitN(2)
 	b.RollbackN(1)
-	b.Flush()
+	_ = b.Flush()
 
 	if len(sender.payloads) != 1 {
 		t.Fatalf("expected 1 flush, got %d", len(sender.payloads))
@@ -505,7 +505,7 @@ func TestBatcher_OrderPreserved(t *testing.T) {
 	b.Commit()
 	b.Commit()
 
-	b.Flush()
+	_ = b.Flush()
 
 	got := sender.payloads[0]
 

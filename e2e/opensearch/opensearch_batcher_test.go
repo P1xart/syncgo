@@ -73,7 +73,7 @@ func TestBatcherWithOpensearch_Flush(t *testing.T) {
 	b := batcher.NewBatcher(ctx, batcher.Config{BufferSize: 100, FlushTimeout: 0}, nil, nil, client)
 	b.Add(bulk_transformer.Data{ID: id, Action: bulk_transformer.Create, Body: []byte(`{"title":"Batcher FlushNow E2E"}`)})
 	b.Commit()
-	b.Flush()
+	_ = b.Flush()
 
 	exists, err := client.DocumentExists(ctx, id)
 	if err != nil {
@@ -102,7 +102,7 @@ func TestBatcherWithOpensearch_DeleteAfterCreate(t *testing.T) {
 	createBatcher := batcher.NewBatcher(ctx, batcher.Config{BufferSize: 100, FlushTimeout: 0}, nil, nil, client)
 	createBatcher.Add(bulk_transformer.Data{ID: id, Action: bulk_transformer.Create, Body: []byte(`{"title":"to be deleted"}`)})
 	createBatcher.Commit()
-	createBatcher.Flush()
+	_ = createBatcher.Flush()
 
 	exists, err := client.DocumentExists(ctx, id)
 	if err != nil {
@@ -115,7 +115,7 @@ func TestBatcherWithOpensearch_DeleteAfterCreate(t *testing.T) {
 	deleteBatcher := batcher.NewBatcher(ctx, batcher.Config{BufferSize: 100, FlushTimeout: 0}, nil, nil, client)
 	deleteBatcher.Add(bulk_transformer.Data{ID: id, Action: bulk_transformer.Delete})
 	deleteBatcher.Commit()
-	deleteBatcher.Flush()
+	_ = deleteBatcher.Flush()
 
 	exists, err = client.DocumentExists(ctx, id)
 	if err != nil {
