@@ -31,6 +31,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Build
+        run: go build ./...
+
       - name: Start services
         run: docker compose -f e2e/docker-compose.yml up -d --wait --wait-timeout 300
 
