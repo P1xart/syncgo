@@ -3,8 +3,11 @@ name: E2E
 on:
   push:
     branches: [ master ]
+    tags:
+      - "v*.*.*"
     paths-ignore:
       - 'README.md'
+
   pull_request:
     branches: [ master ]
     paths-ignore:
@@ -16,24 +19,8 @@ concurrency:
 
 jobs:
 
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Install Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Build
-        run: go build ./...
-
   e2e:
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
