@@ -33,8 +33,36 @@ jobs:
       - name: Start services
         run: docker compose -f e2e/docker-compose.yml up -d --wait --wait-timeout 300
 
+      - name: Prepare postgres for pipeline test
+        run: |
+          docker exec -i e2e-postgres-1 psql -U postgres -d postgres -c "CREATE TABLE IF NOT EXISTS test (id int primary key, name text);"
+          docker exec -i e2e-postgres-1 psql -U postgres -d postgres -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_publication WHERE pubname = 'test_publication') THEN CREATE PUBLICATION test_publication FOR TABLE public.test; END IF; END \$\$;"
+
+      - name: Build syncgo
+        run: go build -o bin/syncgo ./cmd/syncgo
+
+      - name: Start syncgo
+        run: |
+          ./bin/syncgo --config e2e/config.yaml > syncgo-e2e.log 2>&1 &
+          echo $! > syncgo.pid
+
+      - name: Wait for replication slot
+        run: |
+          until [ "$(docker exec -i e2e-postgres-1 psql -U postgres -d postgres -tAc "SELECT active FROM pg_replication_slots WHERE slot_name='test_slot'" 2>/dev/null)" = "t" ]; do
+            echo "waiting for syncgo slot..."
+            sleep 1
+          done
+
       - name: E2E tests
         run: go test -v -tags e2e -timeout 5m ./e2e/...
+
+      - name: Stop syncgo
+        if: always()
+        run: kill "$(cat syncgo.pid)" 2>/dev/null || true
+
+      - name: Show syncgo logs
+        if: always()
+        run: cat syncgo-e2e.log || true
 
       - name: Stop services
         if: always()
