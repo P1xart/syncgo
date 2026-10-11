@@ -113,19 +113,15 @@ func (p *Processor) shutdown() error {
 	return errors.Join(errs...)
 }
 
-func initBatcher(ctx context.Context, cfg config.BatcherConfig, sender batcher.BulkSender, monitoring *metrics.Metrics) *batcher.Batcher {
+func initBatcher(ctx context.Context, cfg config.BatcherConfig, sender batcher.BulkSender, m batcher.Metrics) *batcher.Batcher {
 	b := batcher.NewBatcher(ctx, batcher.Config{
 		BufferSize:   cfg.Size,
 		FlushTimeout: cfg.FlushInterval,
-		MaxRetries:   cfg.FlushMaxRetries,
-		RetryTimeout: cfg.FlushRetryTimeout,
-	}, monitoring, monitoring, sender)
+	}, m, sender)
 
 	slog.Info("batcher initialized",
 		slog.Int("size", cfg.Size),
 		slog.Duration("flush_interval", cfg.FlushInterval),
-		slog.Int("flush_max_retries", cfg.FlushMaxRetries),
-		slog.Duration("flush_retry_timeout", cfg.FlushRetryTimeout),
 	)
 
 	return b
@@ -142,6 +138,8 @@ func initClient(ctx context.Context, cfg config.SearchEngineConfig, monitoring *
 		GzipCompression:   cfg.GzipCompression,
 		TLS:               searchTLSToClient(cfg.TLS),
 		KeepAlive:         searchKeepAliveToClient(cfg.KeepAlive),
+		MaxRetries:        cfg.MaxRetries,
+		RetryTimeout:      cfg.RetryTimeout,
 	}, monitoring)
 	if err != nil {
 		slog.Error("failed to create search engine client", slog.String("error", err.Error()))

@@ -14,11 +14,6 @@ type BulkSender interface {
 	Bulk(ctx context.Context, data bulk_transformer.DataPayload) error
 }
 
-type FlushMonitoring interface {
-	IncFlushRetry()
-	IncFlushFailure()
-}
-
 type Metrics interface {
 	SetBatcherBufferSize(n int)
 }
@@ -26,8 +21,6 @@ type Metrics interface {
 type Config struct {
 	BufferSize   int
 	FlushTimeout time.Duration
-	MaxRetries   int
-	RetryTimeout time.Duration
 }
 
 type Batcher struct {
@@ -36,30 +29,24 @@ type Batcher struct {
 	buffer       []bulk_transformer.Data
 	bufferSize   int
 	flushTimeout time.Duration
-	maxRetries   int
-	retryTimeout time.Duration
 
 	lastCommitted int
 
 	lastFlushTime time.Time
 
-	sender     BulkSender
-	monitoring FlushMonitoring
-	metrics    Metrics
-	ctx        context.Context
+	sender  BulkSender
+	metrics Metrics
+	ctx     context.Context
 }
 
-func NewBatcher(ctx context.Context, cfg Config, monitoring FlushMonitoring, metrics Metrics, sender BulkSender) *Batcher {
+func NewBatcher(ctx context.Context, cfg Config, metrics Metrics, sender BulkSender) *Batcher {
 	batcher := &Batcher{
 		ctx:           ctx,
 		buffer:        make([]bulk_transformer.Data, 0, cfg.BufferSize),
 		bufferSize:    cfg.BufferSize,
 		flushTimeout:  cfg.FlushTimeout,
-		maxRetries:    cfg.MaxRetries,
-		retryTimeout:  cfg.RetryTimeout,
 		lastCommitted: -1,
 		sender:        sender,
-		monitoring:    monitoring,
 		metrics:       metrics,
 		lastFlushTime: time.Now(),
 	}
@@ -178,49 +165,12 @@ func (b *Batcher) flush() error {
 	flushLen := b.lastCommitted + 1
 	payload := bulk_transformer.DataPayload(b.buffer[:flushLen])
 
-	var err error
-	for attempt := 1; attempt <= b.maxRetries+1; attempt++ {
-		err = b.sender.Bulk(b.ctx, payload)
-		if err == nil {
-			break
-		}
-
+	if err := b.sender.Bulk(b.ctx, payload); err != nil {
 		slog.Error("batcher: bulk send failed",
-			slog.Int("attempt", attempt),
-			slog.Int("max_attempts", b.maxRetries+1),
 			slog.Int("last_committed", b.lastCommitted),
 			slog.Int("flush_len", flushLen),
 			slog.String("error", err.Error()),
 		)
-
-		if attempt > b.maxRetries {
-			break
-		}
-
-		if b.monitoring != nil {
-			b.monitoring.IncFlushRetry()
-		}
-
-		select {
-		case <-b.ctx.Done():
-			err = b.ctx.Err()
-			if b.monitoring != nil {
-				b.monitoring.IncFlushFailure()
-			}
-			return err
-		case <-time.After(b.retryTimeout):
-		}
-	}
-
-	if err != nil {
-		slog.Error("batcher: flush failed, giving up after retries",
-			slog.Int("attempts", b.maxRetries+1),
-			slog.Int("flush_len", flushLen),
-			slog.String("error", err.Error()),
-		)
-		if b.monitoring != nil {
-			b.monitoring.IncFlushFailure()
-		}
 		return err
 	}
 

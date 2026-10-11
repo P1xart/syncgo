@@ -11,8 +11,8 @@ type Metrics struct {
 
 	batcherBufferSize prometheus.Gauge
 
-	flushRetriesTotal  prometheus.Counter
-	flushFailuresTotal prometheus.Counter
+	bulkRetriesTotal   prometheus.Counter
+	bulkExhaustedTotal prometheus.Counter
 }
 
 func New(reg prometheus.Registerer) *Metrics {
@@ -44,16 +44,16 @@ func New(reg prometheus.Registerer) *Metrics {
 				Help: "Current number of buffered rows in the batcher, including uncommitted ones.",
 			},
 		),
-		flushRetriesTotal: prometheus.NewCounter(
+		bulkRetriesTotal: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "syncgo_batcher_flush_retries_total",
-				Help: "Total number of batcher flush retry attempts.",
+				Name: "syncgo_search_bulk_retries_total",
+				Help: "Total number of bulk request retry attempts.",
 			},
 		),
-		flushFailuresTotal: prometheus.NewCounter(
+		bulkExhaustedTotal: prometheus.NewCounter(
 			prometheus.CounterOpts{
-				Name: "syncgo_batcher_flush_failures_total",
-				Help: "Total number of batcher flushes that failed after exhausting all retries.",
+				Name: "syncgo_search_bulk_exhausted_total",
+				Help: "Total number of bulk requests that failed after exhausting all retries.",
 			},
 		),
 	}
@@ -67,8 +67,8 @@ func New(reg prometheus.Registerer) *Metrics {
 		metrics.errorsTotal,
 		metrics.bulkDuration,
 		metrics.batcherBufferSize,
-		metrics.flushRetriesTotal,
-		metrics.flushFailuresTotal,
+		metrics.bulkRetriesTotal,
+		metrics.bulkExhaustedTotal,
 	)
 
 	return metrics
@@ -93,10 +93,10 @@ func (m *Metrics) SetBatcherBufferSize(n int) {
 	m.batcherBufferSize.Set(float64(n))
 }
 
-func (m *Metrics) IncFlushRetry() {
-	m.flushRetriesTotal.Inc()
+func (m *Metrics) IncBulkRetry() {
+	m.bulkRetriesTotal.Inc()
 }
 
-func (m *Metrics) IncFlushFailure() {
-	m.flushFailuresTotal.Inc()
+func (m *Metrics) IncBulkExhausted() {
+	m.bulkExhaustedTotal.Inc()
 }

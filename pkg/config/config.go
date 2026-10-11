@@ -20,8 +20,8 @@ const (
 	defaultBatcherSize          = 100
 	defaultBatcherFlushInterval = 50 * time.Millisecond
 
-	defaultFlushMaxRetries   = 3
-	defaultFlushRetryTimeout = time.Second
+	defaultBulkMaxRetries   = 3
+	defaultBulkRetryTimeout = time.Second
 )
 
 // Config holds the complete application configuration
@@ -51,11 +51,6 @@ type BatcherConfig struct {
 	// FlushInterval is how long the batcher waits without any flush before
 	// sending committed items automatically. 0 disables the timer-based flush.
 	FlushInterval time.Duration `yaml:"flush_interval"`
-	// FlushMaxRetries is how many extra attempts are made after a failed flush
-	// before giving up. 0 means no retries.
-	FlushMaxRetries int `yaml:"flush_max_retries"`
-	// FlushRetryTimeout is the delay between flush retry attempts.
-	FlushRetryTimeout time.Duration `yaml:"flush_retry_timeout"`
 }
 
 // PostgreSQLConfig holds PostgreSQL connection configuration
@@ -85,6 +80,11 @@ type SearchEngineConfig struct {
 	TLS               *SearchTLSConfig          `yaml:"tls"`
 	KeepAlive         *SearchKeepAliveConfig    `yaml:"keep_alive"`
 	GRPC              *OpenSearchGRPCConfig     `yaml:"grpc,omitempty"`
+	// MaxRetries is how many extra attempts are made after a failed bulk
+	// request before giving up. 0 means no retries.
+	MaxRetries int `yaml:"max_retries"`
+	// RetryTimeout is the delay between bulk request retry attempts.
+	RetryTimeout time.Duration `yaml:"retry_timeout"`
 }
 
 type SearchTLSConfig struct {
@@ -121,12 +121,12 @@ func (c *Config) Validate() error {
 		c.Batcher.FlushInterval = defaultBatcherFlushInterval
 	}
 
-	if c.Batcher.FlushMaxRetries <= 0 {
-		c.Batcher.FlushMaxRetries = defaultFlushMaxRetries
+	if c.SearchEngine.MaxRetries <= 0 {
+		c.SearchEngine.MaxRetries = defaultBulkMaxRetries
 	}
 
-	if c.Batcher.FlushRetryTimeout <= 0 {
-		c.Batcher.FlushRetryTimeout = defaultFlushRetryTimeout
+	if c.SearchEngine.RetryTimeout <= 0 {
+		c.SearchEngine.RetryTimeout = defaultBulkRetryTimeout
 	}
 
 	if c.PostgreSQL.SlotName == "" {

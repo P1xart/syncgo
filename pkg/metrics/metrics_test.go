@@ -18,24 +18,24 @@ func counterValue(t *testing.T, c prometheus.Counter) float64 {
 	return m.GetCounter().GetValue()
 }
 
-func TestMetrics_FlushCounters(t *testing.T) {
-	m := New()
+func TestMetrics_BulkRetryCounters(t *testing.T) {
+	m := New(prometheus.NewRegistry())
 
-	if got := counterValue(t, m.flushRetriesTotal); got != 0 {
+	if got := counterValue(t, m.bulkRetriesTotal); got != 0 {
 		t.Fatalf("expected 0 retries initially, got %v", got)
 	}
-	if got := counterValue(t, m.flushFailuresTotal); got != 0 {
-		t.Fatalf("expected 0 failures initially, got %v", got)
+	if got := counterValue(t, m.bulkExhaustedTotal); got != 0 {
+		t.Fatalf("expected 0 exhausted initially, got %v", got)
 	}
 
-	m.IncFlushRetry()
-	m.IncFlushRetry()
-	m.IncFlushFailure()
+	m.IncBulkRetry()
+	m.IncBulkRetry()
+	m.IncBulkExhausted()
 
-	if got := counterValue(t, m.flushRetriesTotal); got != 2 {
+	if got := counterValue(t, m.bulkRetriesTotal); got != 2 {
 		t.Fatalf("expected 2 retries, got %v", got)
 	}
-	if got := counterValue(t, m.flushFailuresTotal); got != 1 {
-		t.Fatalf("expected 1 failure, got %v", got)
+	if got := counterValue(t, m.bulkExhaustedTotal); got != 1 {
+		t.Fatalf("expected 1 exhausted, got %v", got)
 	}
 }
